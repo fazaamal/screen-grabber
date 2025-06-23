@@ -4,7 +4,10 @@ import path from "path"
 import os from "os"
 
 export default defineEventHandler(async (event) => {
+  const log = (...args: any[]) => console.log("[screenshot]", ...args)
+
   const query = getQuery(event)
+  log("Received query:", query)
   const targetUrl = query.url || "https://github.com"
   const width = parseInt(query.width as string) || 1080
   const height = parseInt(query.height as string) || 1080
@@ -14,19 +17,30 @@ export default defineEventHandler(async (event) => {
     os.tmpdir(),
     `patchright-user-data-${Date.now()}`
   )
+  log("Parsed params:", {
+    targetUrl,
+    width,
+    height,
+    quality,
+    filetype,
+    userDataDir,
+  })
 
   // Validate targetUrl is a string and a valid URL
   if (typeof targetUrl !== "string") {
+    log("Invalid url: not a string")
     throw new Error("Invalid url: must be a string")
   }
   try {
     new URL(targetUrl)
   } catch {
+    log("Invalid url: not a valid URL")
     throw new Error("Invalid url: must be a valid URL")
   }
 
   let browser = null
   try {
+    log("Launching browser...")
     browser = await playwright.launchPersistentContext(userDataDir, {
       args: chromium.args,
       executablePath: await chromium.executablePath(
@@ -37,10 +51,19 @@ export default defineEventHandler(async (event) => {
       headless: true,
       viewport: { width, height },
     })
+    log("Browser launched")
+
     const page = await browser.newPage()
+    log("New page created")
+
+    log("Navigating to", targetUrl)
     await page.goto(targetUrl)
+    log("Page loaded, waiting for DOMContentLoaded")
     await page.waitForLoadState("domcontentloaded")
+    log("Waiting for 1s")
     await page.waitForTimeout(1000)
+
+    log("Scrolling page to load all content")
     await page.evaluate(async () => {
       await new Promise((resolve) => {
         let totalHeight = 0
@@ -57,23 +80,34 @@ export default defineEventHandler(async (event) => {
         }, 50)
       })
     })
+    log("Scroll complete, resetting scroll position")
     // @ts-ignore
     await page.evaluate(() => window.scrollTo(0, 0))
+    log("Waiting for 0.5s")
     await page.waitForTimeout(500)
+
+    log("Taking screenshot")
     const screenshot = await page.screenshot({
       fullPage: true,
       type: filetype,
       quality: filetype === "jpeg" ? quality : undefined,
     })
+    log("Screenshot taken, setting response headers")
     setResponseHeaders(event, {
       "Content-Type": filetype === "png" ? "image/png" : "image/jpeg",
       "Cache-Control": "public, max-age=3600",
     })
+    log("Returning screenshot")
     return screenshot
   } catch (error: any) {
+    log("Error occurred:", error)
     setResponseStatus(event, 500)
     return { error: error.message }
   } finally {
-    if (browser) await browser.close()
+    if (browser) {
+      log("Closing browser")
+      await browser.close()
+      log("Browser closed")
+    }
   }
 })
