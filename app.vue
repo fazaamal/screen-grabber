@@ -4,11 +4,11 @@
     <form @submit.prevent="handleSubmit">
       <label>
         <input type="radio" value="local" v-model="backendMode" />
-        Use local backend
+        Use {{ webUrl }}
       </label>
       <label>
         <input type="radio" value="remote" v-model="backendMode" />
-        Use deployed backend
+        Use custom deployed backend
       </label>
       <label v-if="backendMode === 'remote'">
         Remote base URL:
@@ -19,6 +19,19 @@
           :disabled="backendMode !== 'remote'"
           required
         />
+      </label>
+      <label>
+        Engine:
+        <div class="radio-group">
+          <label>
+            <input type="radio" value="playwright" v-model="engine" />
+            Playwright
+          </label>
+          <label>
+            <input type="radio" value="patchright" v-model="engine" />
+            Patchright
+          </label>
+        </div>
       </label>
       <label>
         URL:
@@ -84,6 +97,10 @@
 <script setup lang="ts">
 import { ref } from "vue"
 
+const webUrl = ref("")
+onBeforeMount(() => {
+  webUrl.value = window.location.origin + "/api/screenshot"
+})
 const url = ref("https://github.com")
 const width = ref(1080)
 const height = ref(1080)
@@ -95,6 +112,7 @@ const imageSrc = ref("")
 
 const backendMode = ref<"local" | "remote">("local")
 const remoteBaseUrl = ref("https://your-deployed-url.com")
+const engine = ref<"patchright" | "playwright">("playwright")
 
 const handleSubmit = async () => {
   loading.value = true
@@ -107,6 +125,7 @@ const handleSubmit = async () => {
       height: height.value.toString(),
       quality: quality.value.toString(),
       filetype: filetype.value,
+      engine: engine.value,
     })
     let endpoint = ""
     if (backendMode.value === "local") {
@@ -149,6 +168,18 @@ label {
   display: flex;
   flex-direction: column;
   font-weight: 500;
+}
+.radio-group {
+  display: flex;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+.radio-group label {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: normal;
 }
 button {
   padding: 0.5rem 1rem;

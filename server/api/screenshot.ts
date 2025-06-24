@@ -1,5 +1,6 @@
 import chromium from "@sparticuz/chromium-min"
 import { chromium as playwright } from "playwright-core"
+import { chromium as patchright } from "patchright-core"
 import path from "path"
 import os from "os"
 
@@ -13,6 +14,8 @@ export default defineEventHandler(async (event) => {
   const height = parseInt(query.height as string) || 1080
   const quality = parseInt(query.quality as string) || 80
   const filetype = (query.filetype as string) === "png" ? "png" : "jpeg"
+  const engine =
+    (query.engine as string) === "playwright" ? "playwright" : "patchright"
   const userDataDir = path.join(
     os.tmpdir(),
     `patchright-user-data-${Date.now()}`
@@ -23,6 +26,7 @@ export default defineEventHandler(async (event) => {
     height,
     quality,
     filetype,
+    engine,
     userDataDir,
   })
 
@@ -40,8 +44,9 @@ export default defineEventHandler(async (event) => {
 
   let browser = null
   try {
-    log("Launching browser...")
-    browser = await playwright.launchPersistentContext(userDataDir, {
+    log("Launching browser with engine:", engine)
+    const chromiumEngine = engine === "playwright" ? playwright : patchright
+    browser = await chromiumEngine.launchPersistentContext(userDataDir, {
       args: chromium.args,
       executablePath: await chromium.executablePath(
         process.arch === "arm64"
@@ -64,6 +69,7 @@ export default defineEventHandler(async (event) => {
     await page.waitForTimeout(1000)
 
     log("Scrolling page to load all content")
+    // @ts-ignore
     await page.evaluate(async () => {
       await new Promise((resolve) => {
         let totalHeight = 0
