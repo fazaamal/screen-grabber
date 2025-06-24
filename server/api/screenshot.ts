@@ -49,12 +49,16 @@ export default defineEventHandler(async (event) => {
   try {
     // Scrape Open Graph data first
     log("Scraping Open Graph data...")
-    const ogsResult = await ogs({ url: targetUrl })
-    if (ogsResult.result.success) {
-      ogData = ogsResult.result
-      log("Open Graph data scraped successfully")
-    } else {
-      log("Failed to scrape Open Graph data:", ogsResult.result.error)
+    try {
+      const ogsResult = await ogs({ url: targetUrl })
+      if (ogsResult.result.success) {
+        ogData = ogsResult.result
+        log("Open Graph data scraped successfully")
+      } else {
+        log("Failed to scrape Open Graph data:", ogsResult.result.error)
+      }
+    } catch (error) {
+      log("Failed to scrape Open Graph data:", error)
     }
 
     log("Launching browser with engine:", engine)
@@ -117,7 +121,7 @@ export default defineEventHandler(async (event) => {
     const response = {
       screenshot: screenshot.toString("base64"),
       contentType: filetype === "png" ? "image/png" : "image/jpeg",
-      openGraph: ogData,
+      openGraph: ogData || {},
     }
 
     setResponseHeaders(event, {
