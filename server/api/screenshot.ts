@@ -1,6 +1,7 @@
 import chromium from "@sparticuz/chromium-min"
 import { chromium as playwright } from "playwright-core"
 import { chromium as patchright } from "patchright-core"
+import ogs from "open-graph-scraper"
 import path from "path"
 import os from "os"
 
@@ -43,7 +44,19 @@ export default defineEventHandler(async (event) => {
   }
 
   let browser = null
+  let ogData = null
+
   try {
+    // Scrape Open Graph data first
+    log("Scraping Open Graph data...")
+    const ogsResult = await ogs({ url: targetUrl })
+    if (ogsResult.result.success) {
+      ogData = ogsResult.result
+      log("Open Graph data scraped successfully")
+    } else {
+      log("Failed to scrape Open Graph data:", ogsResult.result.error)
+    }
+
     log("Launching browser with engine:", engine)
     const chromiumEngine = engine === "playwright" ? playwright : patchright
     browser = await chromiumEngine.launchPersistentContext(userDataDir, {
@@ -99,12 +112,20 @@ export default defineEventHandler(async (event) => {
       quality: filetype === "jpeg" ? quality : undefined,
     })
     log("Screenshot taken, setting response headers")
+
+    // Return both screenshot and Open Graph data
+    const response = {
+      screenshot: screenshot.toString("base64"),
+      contentType: filetype === "png" ? "image/png" : "image/jpeg",
+      openGraph: ogData,
+    }
+
     setResponseHeaders(event, {
-      "Content-Type": filetype === "png" ? "image/png" : "image/jpeg",
+      "Content-Type": "application/json",
       "Cache-Control": "public, max-age=3600",
     })
-    log("Returning screenshot")
-    return screenshot
+    log("Returning response with screenshot and Open Graph data")
+    return response
   } catch (error: any) {
     log("Error occurred:", error)
     setResponseStatus(event, 500)

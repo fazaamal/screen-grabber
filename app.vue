@@ -83,13 +83,42 @@
     </form>
     <div v-if="loading">Loading...</div>
     <div v-if="error" class="error">{{ error }}</div>
-    <div v-if="imageSrc">
-      <h2>Screenshot Result</h2>
-      <img
-        :src="imageSrc"
-        :alt="'Screenshot of ' + url"
-        style="max-width: 100%; border: 1px solid #ccc"
-      />
+    <div v-if="imageSrc || openGraphData">
+      <h2>Results</h2>
+      <div v-if="imageSrc" class="screenshot-section">
+        <h3>Screenshot</h3>
+        <img
+          :src="imageSrc"
+          :alt="'Screenshot of ' + url"
+          style="max-width: 100%; border: 1px solid #ccc"
+        />
+      </div>
+      <div v-if="openGraphData" class="og-section">
+        <h3>Open Graph Data</h3>
+        <div class="og-preview">
+          <div v-if="openGraphData.ogImage" class="og-image">
+            <img
+              :src="openGraphData.ogImage[0]?.url"
+              :alt="openGraphData.ogTitle || 'Preview image'"
+            />
+          </div>
+          <div class="og-content">
+            <div v-if="openGraphData.ogTitle" class="og-title">
+              {{ openGraphData.ogTitle }}
+            </div>
+            <div v-if="openGraphData.ogDescription" class="og-description">
+              {{ openGraphData.ogDescription }}
+            </div>
+            <div v-if="openGraphData.ogUrl" class="og-url">
+              {{ openGraphData.ogUrl }}
+            </div>
+          </div>
+        </div>
+        <details class="og-details">
+          <summary>Raw Open Graph Data</summary>
+          <pre>{{ JSON.stringify(openGraphData, null, 2) }}</pre>
+        </details>
+      </div>
     </div>
   </div>
 </template>
@@ -109,6 +138,7 @@ const filetype = ref("jpeg")
 const loading = ref(false)
 const error = ref("")
 const imageSrc = ref("")
+const openGraphData = ref(null)
 
 const backendMode = ref<"local" | "remote">("local")
 const remoteBaseUrl = ref("https://your-deployed-url.com")
@@ -118,6 +148,7 @@ const handleSubmit = async () => {
   loading.value = true
   error.value = ""
   imageSrc.value = ""
+  openGraphData.value = null
   try {
     const params = new URLSearchParams({
       url: url.value,
@@ -139,8 +170,21 @@ const handleSubmit = async () => {
       const err = await res.json()
       throw new Error(err.error || "Unknown error")
     }
-    const blob = await res.blob()
-    imageSrc.value = URL.createObjectURL(blob)
+    const data = await res.json()
+
+    // Handle the new response format
+    if (data.screenshot) {
+      const contentType = data.contentType || "image/jpeg"
+      const blob = new Blob(
+        [Uint8Array.from(atob(data.screenshot), (c) => c.charCodeAt(0))],
+        { type: contentType }
+      )
+      imageSrc.value = URL.createObjectURL(blob)
+    }
+
+    if (data.openGraph) {
+      openGraphData.value = data.openGraph
+    }
   } catch (e: any) {
     error.value = e.message
   } finally {
@@ -151,7 +195,7 @@ const handleSubmit = async () => {
 
 <style scoped>
 .screenshot-ui {
-  max-width: 500px;
+  max-width: 800px;
   margin: 2rem auto;
   padding: 2rem;
   border: 1px solid #eee;
@@ -196,5 +240,50 @@ button:hover {
 .error {
   color: #c00;
   margin-top: 1rem;
+}
+.screenshot-section,
+.og-section {
+  margin-top: 2rem;
+}
+.og-preview {
+  display: flex;
+  gap: 1rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 1rem;
+  background: #fff;
+  margin-bottom: 1rem;
+}
+.og-image img {
+  width: 120px;
+  height: 120px;
+  object-fit: cover;
+  border-radius: 4px;
+}
+.og-content {
+  flex: 1;
+}
+.og-title {
+  font-weight: bold;
+  font-size: 1.1rem;
+  margin-bottom: 0.5rem;
+}
+.og-description {
+  color: #666;
+  margin-bottom: 0.5rem;
+}
+.og-url {
+  color: #0070f3;
+  font-size: 0.9rem;
+}
+.og-details {
+  margin-top: 1rem;
+}
+.og-details pre {
+  background: #f5f5f5;
+  padding: 1rem;
+  border-radius: 4px;
+  overflow-x: auto;
+  font-size: 0.8rem;
 }
 </style>
