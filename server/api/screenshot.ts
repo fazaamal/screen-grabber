@@ -16,6 +16,7 @@ export default defineEventHandler(async (event) => {
   const filetype = (query.filetype as string) === "png" ? "png" : "jpeg"
   const engine =
     (query.engine as string) === "playwright" ? "playwright" : "patchright"
+  const fullPage = query.fullPage !== "false" // Default to true, only false when explicitly set
   const userDataDir = path.join(
     os.tmpdir(),
     `patchright-user-data-${Date.now()}`
@@ -27,6 +28,7 @@ export default defineEventHandler(async (event) => {
     quality,
     filetype,
     engine,
+    fullPage,
     userDataDir,
   })
 
@@ -94,7 +96,7 @@ export default defineEventHandler(async (event) => {
 
     log("Taking screenshot")
     const screenshot = await page.screenshot({
-      fullPage: true,
+      fullPage: fullPage,
       type: filetype,
       quality: filetype === "jpeg" ? quality : undefined,
     })

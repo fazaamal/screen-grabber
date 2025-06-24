@@ -79,6 +79,10 @@
           <option value="png">PNG</option>
         </select>
       </label>
+      <label>
+        <input type="checkbox" v-model="fullPage" />
+        Full page screenshot
+      </label>
       <button type="submit">Take Screenshot</button>
     </form>
     <div v-if="loading">Loading...</div>
@@ -136,6 +140,7 @@ const width = ref(1080)
 const height = ref(1080)
 const quality = ref(80)
 const filetype = ref("jpeg")
+const fullPage = ref(true)
 const loading = ref(false)
 const error = ref("")
 const imageSrc = ref("")
@@ -160,6 +165,7 @@ const handleSubmit = async () => {
       quality: quality.value.toString(),
       filetype: filetype.value,
       engine: engine.value,
+      fullPage: fullPage.value.toString(),
     })
     let endpoint = ""
     if (backendMode.value === "local") {
