@@ -119,6 +119,7 @@
           <pre>{{ JSON.stringify(openGraphData, null, 2) }}</pre>
         </details>
       </div>
+      <div v-if="ogError" class="error">Open Graph Error: {{ ogError }}</div>
     </div>
   </div>
 </template>
@@ -138,7 +139,8 @@ const filetype = ref("jpeg")
 const loading = ref(false)
 const error = ref("")
 const imageSrc = ref("")
-const openGraphData = ref(null)
+const openGraphData = ref<any>(null)
+const ogError = ref("")
 
 const backendMode = ref<"local" | "remote">("local")
 const remoteBaseUrl = ref("https://your-deployed-url.com")
@@ -149,6 +151,7 @@ const handleSubmit = async () => {
   error.value = ""
   imageSrc.value = ""
   openGraphData.value = null
+  ogError.value = ""
   try {
     const params = new URLSearchParams({
       url: url.value,
@@ -165,28 +168,42 @@ const handleSubmit = async () => {
       let base = remoteBaseUrl.value.replace(/\/$/, "")
       endpoint = `${base}/api/screenshot?${params.toString()}`
     }
-    const res = await fetch(endpoint)
-    if (!res.ok) {
-      const err = await res.json()
-      throw new Error(err.error || "Unknown error")
+    // Fetch screenshot and OG data in parallel
+    const screenshotPromise = fetch(endpoint)
+    const ogPromise = fetch(`/api/og?url=${encodeURIComponent(url.value)}`)
+    const [screenshotRes, ogRes] = await Promise.all([
+      screenshotPromise,
+      ogPromise,
+    ])
+    // Handle screenshot
+    if (!screenshotRes.ok) {
+      let errMsg = "Unknown error"
+      try {
+        const err = await screenshotRes.json()
+        errMsg = err.error || errMsg
+      } catch {}
+      throw new Error(errMsg)
     }
-    const data = await res.json()
-
-    // Handle the new response format
-    if (data.screenshot) {
-      const contentType = data.contentType || "image/jpeg"
-      const blob = new Blob(
-        [Uint8Array.from(atob(data.screenshot), (c) => c.charCodeAt(0))],
-        { type: contentType }
-      )
-      imageSrc.value = URL.createObjectURL(blob)
+    const blob = await screenshotRes.blob()
+    imageSrc.value = URL.createObjectURL(blob)
+    // Handle OG
+    if (ogRes.ok) {
+      const ogJson = await ogRes.json()
+      if (ogJson.openGraph) {
+        openGraphData.value = ogJson.openGraph
+      } else if (ogJson.error) {
+        ogError.value = ogJson.error
+      }
+    } else {
+      try {
+        const ogJson = await ogRes.json()
+        ogError.value = ogJson.error || "Failed to fetch Open Graph data"
+      } catch {
+        ogError.value = "Failed to fetch Open Graph data"
+      }
     }
-
-    if (data.openGraph) {
-      openGraphData.value = data.openGraph
-    }
-  } catch (e: any) {
-    error.value = e.message
+  } catch (e) {
+    error.value = e instanceof Error ? e.message : String(e)
   } finally {
     loading.value = false
   }
